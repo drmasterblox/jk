@@ -1,9 +1,8 @@
 import javafx.animation.TranslateTransition;
 import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
-import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Scene;
-import javafx.scene.control.Button;
 import javafx.scene.image.Image;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
@@ -52,6 +51,12 @@ public class Window {
 
         stage.show();
         stage.centerOnScreen();
+
+        // Užtikrinam, kad content užims visą plotą kai startuoja
+        updateContentWidth();
+
+        // Klausomės pločio pokyčių kad automatiškai perskaičiuotų
+        mainArea.widthProperty().addListener((obs, oldVal, newVal) -> updateContentWidth());
     }
 
     public void openPage(Page page) {
@@ -62,35 +67,57 @@ public class Window {
             pageView = new NotePage(page, this).getView();
         }
         mainArea.getChildren().set(1, pageView);
+
+        // Po puslapio atidarymo atnaujiname content pločio bindingą
+        updateContentWidth();
     }
-
-    // public void toggleSidebar() {
-    //     boolean showing = sidebar.isVisible();
-    //     TranslateTransition slide = new TranslateTransition(Duration.millis(200), sidebar.getView());
-    //     slide.setToX(showing ? -300 : 0);
-    //     slide.play();
-
-    //     sidebar.getView().setVisible(!showing);
-    // }
 
     public void toggleSidebar() {
-    boolean showing = sidebar.isVisible();
-    if (showing) {
-        mainArea.getChildren().remove(sidebar.getView());
-    } else {
-        mainArea.getChildren().add(0, sidebar.getView());
+        boolean showing = sidebar.getView().isVisible();
+
+        if (showing) {
+            TranslateTransition slideOut = new TranslateTransition(Duration.millis(200), sidebar.getView());
+            slideOut.setToX(-sidebar.getView().getWidth());
+            slideOut.setOnFinished(e -> {
+                sidebar.getView().setVisible(false);
+                sidebar.getView().setManaged(false);
+                sidebar.getView().setTranslateX(0); // reset translate X
+                updateContentWidth();
+            });
+            slideOut.play();
+        } else {
+            sidebar.getView().setManaged(true);
+            sidebar.getView().setVisible(true);
+            sidebar.getView().setTranslateX(-sidebar.getView().getWidth());
+
+            TranslateTransition slideIn = new TranslateTransition(Duration.millis(200), sidebar.getView());
+            slideIn.setToX(0);
+            slideIn.setOnFinished(e -> updateContentWidth());
+            slideIn.play();
+        }
     }
 
-    sidebar.getView().setVisible(!showing);
+  private void updateContentWidth() {
+    Region sidebarView = (Region) sidebar.getView();
+    Region content = (Region) mainArea.getChildren().get(1);
+
+    if (sidebarView.isVisible() && sidebarView.isManaged()) {
+        content.prefWidthProperty().unbind();
+        content.prefWidthProperty().bind(Bindings.createDoubleBinding(() ->
+            mainArea.getWidth() - sidebarView.getBoundsInParent().getWidth(),
+            mainArea.widthProperty(), sidebarView.boundsInParentProperty()));
+    } else {
+        content.prefWidthProperty().unbind();
+        content.prefWidthProperty().bind(mainArea.widthProperty());
+    }
 }
 
 
     public boolean isSidebarVisible() {
-        return sidebar.isVisible();
+        return sidebar.getView().isVisible();
     }
 
     public Sidebar getSidebar() {
-    return sidebar;
-}
-
+        return sidebar;
+    }
 }
